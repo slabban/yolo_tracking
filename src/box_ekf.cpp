@@ -92,11 +92,12 @@ void boxEkf::updateFilterMeasurement(const ros::Time& current_time, const filter
 
   if (fabs(dt) > 2) {
     // Large time jump detected... reset filter to this measurement
+    ROS_INFO("Large time jump detected... resetting filter to this measurement");
     X_ << ekf_bounding_box.cx, ekf_bounding_box.cy, ekf_bounding_box.width, ekf_bounding_box.height, 0, 0, 0, 0;
     P_.setIdentity();
     //spawn_stamp_ = meas.header.stamp;
     estimate_stamp_ = current_time;
-    //measurement_stamp_ = current_time;
+    measurement_stamp_ = current_time;
     return;
   }
 
@@ -143,7 +144,9 @@ void boxEkf::updateFilterMeasurement(const ros::Time& current_time, const filter
   // Update estimate error covariance using Kalman gain matrix
   P_ = (StateMatrix::Identity() - K*C)*predicted_cov;
 
+  // Set estimate time stamp and latest measurement time stamp to the stamp in the input argument
   estimate_stamp_ = current_time;
+  measurement_stamp_ = current_time;
 
 }
 
@@ -155,5 +158,10 @@ int boxEkf::getId()
 {
   return id_;
 }
+
+bool boxEkf::isStale() {
+  return (estimate_stamp_ - measurement_stamp_) > ros::Duration(0.5);
+}
+
 
 }

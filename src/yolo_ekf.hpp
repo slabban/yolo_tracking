@@ -36,7 +36,7 @@ private:
   void ekfBox_to_msgBox(const filteredBox& ekfBox, darknet_ros_msgs::BoundingBox& boundingbox);
 
   double IoU(const filteredBox& detect_current, const filteredBox& detect_prev, const double& IoU_thresh);
-  int getUniqueId();
+  //int getUniqueId();
 
   // Predict State
   StateVector statePrediction(double dt, const StateVector& old_state);
@@ -64,7 +64,7 @@ private:
   //Intersection Over Union Threshold
   double IoU_thresh;
   // Initialize vector to track ekf instances
-  std::deque<boxEkf> box_ekfs_;
+  std::vector<boxEkf> box_ekfs_;
 
 };
 

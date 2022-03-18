@@ -24,10 +24,10 @@ find_package(OpenCV REQUIRED)
 
 
 
-generate_messages(
-  DEPENDENCIES
-  std_msgs
-)
+# generate_messages(
+#   DEPENDENCIES
+#   std_msgs
+# )
 
 catkin_package(
   DEPENDS OpenCV std_msgs roscpp darknet_ros_msgs 
@@ -41,13 +41,9 @@ include_directories(
 )
 
 add_executable(${PROJECT_NAME}
-#  src/camera_lidar_fusion.cpp
-#  src/CameraLidarFusion.cpp
  src/yolo_ekf.cpp
  src/yolo_ekf_node.cpp
- #src/homework4_node.cpp
- #src/Homework4.cpp
- #src/ObjectEkf.cpp
+ src/box_ekf.cpp
 
 )
 
