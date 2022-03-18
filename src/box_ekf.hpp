@@ -42,6 +42,7 @@ class boxEkf{
   filteredBox getfilteredBox();
   // getter function for EKF instance Id
   int getId();
+  bool isStale();
 
   private:
 
@@ -56,6 +57,9 @@ class boxEkf{
   StateVector X_;
   StateMatrix P_;
   ros::Time estimate_stamp_;
+
+  // Timestamp from last measurement
+  ros::Time measurement_stamp_;
 
   // Process Noise Covariance
   StateMatrix Q_;

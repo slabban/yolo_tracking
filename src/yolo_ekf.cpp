@@ -22,9 +22,18 @@ yoloEkf::yoloEkf(ros::NodeHandle n, ros::NodeHandle pn){
 }
 void yoloEkf::timerCallback(const ros::TimerEvent& event){
 
-  // TODO: Implement Stale object checker by 
+  // Delete stale objects that have not been observed for a while
+  std::vector<size_t> stale_objects;
+  for (size_t i = 0; i < box_ekfs_.size(); ++i) {
+    box_ekfs_[i].updateFilterPredict(event.current_real);
+    if (box_ekfs_[i].isStale()) {
+      stale_objects.push_back(i);
+    }
+  }
+  for (int i = (int)stale_objects.size() - 1; i >= 0; i--) {
+    box_ekfs_.erase(box_ekfs_.begin() + stale_objects[i]);
+  }
 
-  updateFilterPredict(event.current_real);
 
   darknet_ros_msgs::BoundingBoxes bbox_tracks;
 
@@ -49,31 +58,45 @@ void yoloEkf::recvBboxes(const darknet_ros_msgs::BoundingBoxesConstPtr& bbox_msg
   // Vector to hold array indices of objects to create new EKF instances from
   std::vector<filteredBox> new_detection_indices;
 
+
+
+  // Find closest candidate with the highest IoU
   for (auto& bounding_box : bbox_msg->bounding_boxes){
+    filteredBox current_box;
+    msgBox_to_ekfBox(bounding_box, bbox_msg->header.stamp, current_box);
+
+    filteredBox* current_candidate = nullptr;
+    boxEkf* associated_filter = nullptr;
+    float IoU_score_current = -1.f;
+    float IoU_score_prev = -1.f;
+    float IoU_score_max = -1.f;
+
     for(size_t i=0; i<box_ekfs_.size(); ++i){
+      IoU_score_current = IoU(current_box, box_ekfs_[i].getfilteredBox(), IoU_thresh);
 
-      filteredBox current_box;
-      msgBox_to_ekfBox(bounding_box, bbox_msg->header.stamp, current_box);
-      
-      int IoU_score = IoU(current_box, box_ekfs_[i].getfilteredBox(), IoU_thresh);
-
-      // If IoU passes and the classes match, we can associate the incoming detection with the existing ekf instance
-      if (IoU_score >= IoU_thresh && current_box.darknet_box.Class == box_ekfs_[i].getfilteredBox().darknet_box.Class){
-        box_ekfs_[i].updateFilterMeasurement(current_box.stamp, current_box);
+      if(IoU_score_current > IoU_score_prev && current_box.darknet_box.Class == box_ekfs_[i].getfilteredBox().darknet_box.Class){
+        current_candidate = &current_box;
+        associated_filter = &box_ekfs_[i];
+        IoU_score_max = IoU_score_current;
       }
-      else{
-        new_detection_indices.push_back(current_box);
-      }
+      IoU_score_prev = IoU_score_current;
     }
-    // After trying to associate all incoming object measurements to existing EKF instances,
-    // create new EKF instances to track the inputs that weren't associated with existing ones
-    for (auto new_object : new_detection_indices) {
-
-      box_ekfs_.push_back(boxEkf(new_object));
-      // object_ekfs_.back().setQ(cfg_.q_pos, cfg_.q_vel);
-      // object_ekfs_.back().setR(cfg_.r_pos);
+    // If IoU passes and the classes match, we can associate the incoming detection with the existing ekf instance
+    if (IoU_score_max >= IoU_thresh){
+      associated_filter->updateFilterMeasurement(current_candidate->stamp, *current_candidate);
+    }
+    else{
+      new_detection_indices.push_back(current_box);
     }
   }
+  // After trying to associate all incoming object measurements to existing EKF instances,
+  // create new EKF instances to track the inputs that weren't associated with existing ones
+  for (auto new_object : new_detection_indices) {
+
+    box_ekfs_.push_back(boxEkf(new_object));
+    // object_ekfs_.back().setQ(cfg_.q_pos, cfg_.q_vel);
+    // object_ekfs_.back().setR(cfg_.r_pos);
+    }
 }
 
 
@@ -275,23 +298,23 @@ double yoloEkf::IoU(const filteredBox& detect_current, const filteredBox& detect
   return IoU;
 }
 
-int yoloEkf::getUniqueId()
-  {
-//return id ++ 
-    int id = 0;
-    bool done = false;
-    while (!done) {
-      done = true;
-      for (auto& track : box_ekfs_) {
-        if (track.getId() == id) {
-          done = false;
-          id++;
-          break;
-        }
-      }
-    }
-    return id;
-  }
+// int yoloEkf::getUniqueId()
+//   {
+// //return id ++ 
+//     int id = 0;
+//     bool done = false;
+//     while (!done) {
+//       done = true;
+//       for (auto& track : box_ekfs_) {
+//         if (track.getId() == id) {
+//           done = false;
+//           id++;
+//           break;
+//         }
+//       }
+//     }
+//     return id;
+//   }
 
 
 }
