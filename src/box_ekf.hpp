@@ -40,6 +40,8 @@ class boxEkf{
   void updateFilterMeasurement(const ros::Time& current_time, const filteredBox& ekf_bounding_box);
   // Getter function for EKF instance filtered box
   filteredBox getfilteredBox();
+  // Getter function for instance estimate
+  filteredBox getEstimate();
   // getter function for EKF instance Id
   int getId();
   bool isStale();
