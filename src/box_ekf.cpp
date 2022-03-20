@@ -6,7 +6,8 @@ namespace yolo_ekf{
   {
 
     X_.setZero();
-    P_ = P_.setIdentity() * 10;
+    P_.setIdentity() * 10;
+    Q_ = Q_.setIdentity() * 0.25;
     estimate_stamp_ = detection.stamp;
     filteredBox_ = detection;
 
@@ -161,6 +162,20 @@ int boxEkf::getId()
 
 bool boxEkf::isStale() {
   return (estimate_stamp_ - measurement_stamp_) > ros::Duration(0.5);
+}
+
+filteredBox boxEkf::getEstimate(){
+  filteredBox estimate_output;
+  estimate_output.cx = X_(0);
+  estimate_output.cy = X_(1);
+  estimate_output.width = X_(2);
+  estimate_output.height = X_(3);
+  estimate_output.vx = X_(4);
+  estimate_output.vy = X_(5);
+  estimate_output.vw = X_(6);
+  estimate_output.vh = X_(7);
+
+  return estimate_output;
 }
 
 
