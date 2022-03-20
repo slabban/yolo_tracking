@@ -27,14 +27,10 @@ private:
   void timerCallback(const ros::TimerEvent& event);
   void recvBboxes(const darknet_ros_msgs::BoundingBoxesConstPtr& bbox_msg);
   void recvImgs(const sensor_msgs::ImageConstPtr& img_msg);
-
-
   void msgBox_to_ekfBox(const darknet_ros_msgs::BoundingBox& boundingbox, const ros::Time& boxStamp, filteredBox& ekfBox);
-
   double IoU(const filteredBox& detect_current, const filteredBox& detect_prev, const double& IoU_thresh);
-  //int getUniqueId();
-
-
+  int getUniqueId();
+ 
   ros::Subscriber sub_Bboxes_;
   ros::Publisher pub_ekf_boxes_;
   // TODO: Define some message that will publish the predicted bounding box states information as pub_box_comprehensive_
@@ -44,15 +40,10 @@ private:
   // for vizualization purposes
   ros::Subscriber sub_detectionimgs_;
   cv::Mat img_raw;
-  cv::Rect2d test;
-
+  std::vector<cv::Rect2d> cv_vects_;
 
   //dynamic_reconfigure::Server<paramer_configure_config_here> srv_;
   //<paramer_configure_config_here> cfg_;
-
-  ros::Time estimate_stamp_;
-  // Process Noise Covariance
-  StateMatrix Q_;
 
   //Intersection Over Union Threshold
   double IoU_thresh;

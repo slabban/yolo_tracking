@@ -7,8 +7,9 @@ namespace yolo_ekf{
 
     X_.setZero();
     P_.setIdentity() * 10;
-    Q_ = Q_.setIdentity() * 0.25;
+    Q_ = Q_.setIdentity() * 0.01;
     estimate_stamp_ = detection.stamp;
+    measurement_stamp_ = detection.stamp;
     filteredBox_ = detection;
 
   }
@@ -34,7 +35,6 @@ namespace yolo_ekf{
     new_state(5) = vy;
     new_state(6) = vw;
     new_state(7) = vh;
-
     return new_state;
   }
 
@@ -84,9 +84,6 @@ namespace yolo_ekf{
 
 void boxEkf::updateFilterMeasurement(const ros::Time& current_time, const filteredBox& ekf_bounding_box){
 
-  //filteredBox ekf_bounding_box = {};
-  //msgBox_to_ekfBox(boundingbox, ekf_bounding_box);  
-
   // Calculate time difference between measurement and filter state
   double dt = (current_time - estimate_stamp_).toSec();
   ROS_INFO("Detections update delta t: %f seconds", dt);
@@ -101,6 +98,11 @@ void boxEkf::updateFilterMeasurement(const ros::Time& current_time, const filter
     measurement_stamp_ = current_time;
     return;
   }
+
+  filteredBox_.darknet_box.xmin = ekf_bounding_box.darknet_box.xmin;
+  filteredBox_.darknet_box.xmax = ekf_bounding_box.darknet_box.xmax;
+  filteredBox_.darknet_box.ymin = ekf_bounding_box.darknet_box.ymin;
+  filteredBox_.darknet_box.ymax = ekf_bounding_box.darknet_box.ymax;
 
   // Prediction step
   StateMatrix A = stateJacobian(dt, X_);
@@ -127,8 +129,8 @@ void boxEkf::updateFilterMeasurement(const ros::Time& current_time, const filter
   Eigen::Matrix4d R_;
   R_.row(0) << 1,0,0,0;
   R_.row(1) << 0,1,0,0;
-  R_.row(2) << 0,0,10,0;
-  R_.row(3) << 0,0,0,10;
+  R_.row(2) << 0,0,5,0;
+  R_.row(3) << 0,0,0,5;
 
   // Compute residual(Innovation) covariance matrix 
   Eigen::Matrix4d S;
@@ -174,6 +176,12 @@ filteredBox boxEkf::getEstimate(){
   estimate_output.vy = X_(5);
   estimate_output.vw = X_(6);
   estimate_output.vh = X_(7);
+
+  estimate_output.darknet_box.xmin = estimate_output.cx - (0.5*estimate_output.width);
+  estimate_output.darknet_box.xmax = estimate_output.cx + (0.5*estimate_output.width);
+  estimate_output.darknet_box.ymin = estimate_output.cy - (0.5*estimate_output.height);
+  estimate_output.darknet_box.ymax = estimate_output.cy + (0.5*estimate_output.height);
+  estimate_output.darknet_box.Class = filteredBox_.darknet_box.Class;
 
   return estimate_output;
 }
