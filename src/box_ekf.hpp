@@ -22,6 +22,7 @@ typedef struct
   double vy;
   double vw;
   double vh;
+  int id;
   ros::Time stamp;
 }filteredBox;
 

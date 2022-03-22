@@ -4,10 +4,10 @@ namespace yolo_ekf{
 
   boxEkf::boxEkf(filteredBox detection)
   {
-
-    X_.setZero();
-    P_.setIdentity() * 10;
-    Q_ = Q_.setIdentity() * 0.01;
+    // Initialize state estimate to input arguments
+    X_ << detection.cx, detection.cy, detection.width, detection.height, detection.vx, detection.vy, detection.vw, detection.vh;
+    P_.setIdentity() * 10000;
+    Q_ = Q_.setIdentity() *10;
     estimate_stamp_ = detection.stamp;
     measurement_stamp_ = detection.stamp;
     filteredBox_ = detection;
@@ -159,11 +159,11 @@ filteredBox boxEkf::getfilteredBox(){
 
 int boxEkf::getId()
 {
-  return id_;
+  return id_ = filteredBox_.id;
 }
 
 bool boxEkf::isStale() {
-  return (estimate_stamp_ - measurement_stamp_) > ros::Duration(0.5);
+  return (estimate_stamp_ - measurement_stamp_) > ros::Duration(0.2);
 }
 
 filteredBox boxEkf::getEstimate(){
