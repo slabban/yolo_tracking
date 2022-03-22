@@ -8,7 +8,7 @@ namespace yolo_ekf{
 
 yoloEkf::yoloEkf(ros::NodeHandle n, ros::NodeHandle pn){
 
-  double sample_time = 0.01;
+  double sample_time = 0.02;
 
   sub_detectionimgs_ = n.subscribe("/darknet_ros/detection_image", 1, &yoloEkf::recvImgs, this);
   sub_Bboxes_ = n.subscribe("/darknet_ros/bounding_boxes", 1 , &yoloEkf::recvBboxes, this);
@@ -16,8 +16,8 @@ yoloEkf::yoloEkf(ros::NodeHandle n, ros::NodeHandle pn){
   timer_ = n.createTimer(ros::Duration(sample_time), &yoloEkf::timerCallback, this);
   //TODO: Setup Dynamic Config Server here
 
-  IoU_thresh = 0.33;
-
+  // IoU threshold for box association algorithms
+  IoU_thresh = 0.3;
   cv::namedWindow("Sync_Output", cv::WINDOW_NORMAL);
 }
 
@@ -32,7 +32,6 @@ void yoloEkf::recvImgs(const sensor_msgs::ImageConstPtr& img_msg){
 
 
 void yoloEkf::timerCallback(const ros::TimerEvent& event){
-
   // Delete stale objects that have not been observed for a while
   std::vector<size_t> stale_objects;
   for (size_t i = 0; i < box_ekfs_.size(); ++i) {
@@ -41,15 +40,13 @@ void yoloEkf::timerCallback(const ros::TimerEvent& event){
       stale_objects.push_back(i);
     }
   }
-
   for (int i = (int)stale_objects.size() - 1; i >= 0; i--) {
     box_ekfs_.erase(box_ekfs_.begin() + stale_objects[i]);
   }
-
+  // Loop through the estimates and estimated bounding boxes on to cv image
   cv_vects_.clear();
   for (size_t i = 0; i < box_ekfs_.size(); ++i) {
-    filteredBox estimated_output = box_ekfs_[i].getfilteredBox();
-    
+    filteredBox estimated_output = box_ekfs_[i].getEstimate();
     cv::Rect2d prediction_cv(estimated_output.darknet_box.xmin, estimated_output.darknet_box.ymin,
     estimated_output.width,estimated_output.height);
     cv_vects_.push_back(prediction_cv);
@@ -75,12 +72,14 @@ void yoloEkf::recvBboxes(const darknet_ros_msgs::BoundingBoxesConstPtr& bbox_msg
 
     filteredBox* current_candidate = nullptr;
     boxEkf* associated_filter = nullptr;
-    float IoU_score_current = -1.f;
-    float IoU_score_prev = -1.f;
-    float IoU_score_max = -1.f;
+    double IoU_score_current = -1.f;
+    double IoU_score_prev = -1.f;
+    double IoU_score_max = -1.f;
 
     for(size_t i=0; i<box_ekfs_.size(); ++i){
-      IoU_score_current = IoU(current_box, box_ekfs_[i].getfilteredBox(), IoU_thresh);
+      IoU_score_current = IoU(current_box, box_ekfs_[i].getEstimate(), IoU_thresh);
+
+      //ROS_INFO("current IoU is: %f", IoU_score_current);
 
       if(IoU_score_current > IoU_score_max && current_box.darknet_box.Class == box_ekfs_[i].getEstimate().darknet_box.Class){
         current_candidate = &current_box;
@@ -89,6 +88,7 @@ void yoloEkf::recvBboxes(const darknet_ros_msgs::BoundingBoxesConstPtr& bbox_msg
       }
       //IoU_score_prev = IoU_score_current;
     }
+    ROS_INFO("Max IoU is: %f", IoU_score_max);
     // If IoU passes and the classes match, we can associate the incoming detection with the existing ekf instance
     if (IoU_score_max >= IoU_thresh){
       associated_filter->updateFilterMeasurement(current_candidate->stamp, *current_candidate);
@@ -100,7 +100,7 @@ void yoloEkf::recvBboxes(const darknet_ros_msgs::BoundingBoxesConstPtr& bbox_msg
   // create new EKF instances to track the inputs that weren't associated with existing ones
   for (auto new_object : new_detection_indices) {
 
-    ROS_INFO("Creating new object!");
+    //ROS_INFO("Creating new object!");
 
     box_ekfs_.push_back(boxEkf(new_object));
     // object_ekfs_.back().setQ(cfg_.q_pos, cfg_.q_vel);
@@ -123,6 +123,7 @@ void yoloEkf::msgBox_to_ekfBox(const darknet_ros_msgs::BoundingBox& boundingbox,
 
 double yoloEkf::IoU(const filteredBox& detect_current, const filteredBox& detect_prev, const double& IoU_thresh)
 {  
+  // wrapping box names to r1 and r2 for readability
   double r1_xmin = detect_current.darknet_box.xmin;
   double r1_ymin = detect_current.darknet_box.ymin;
   double r1_xmax = detect_current.darknet_box.xmax;
@@ -131,26 +132,30 @@ double yoloEkf::IoU(const filteredBox& detect_current, const filteredBox& detect
   double r2_ymin = detect_prev.darknet_box.ymin;
   double r2_xmax = detect_prev.darknet_box.xmax;
   double r2_ymax = detect_prev.darknet_box.ymax;
-
-  // If one rectangle is on left side of other 
+  double r1_width = r1_xmax - r1_xmin;
+  double r1_height = r1_ymax - r1_ymin;
+  double r2_width = r2_xmax - r2_xmin;
+  double r2_height = r2_ymax - r2_ymin;
+  //If one rectangle is on left side of other 
   if (r1_xmin >= r2_xmax || r2_xmin >= r1_xmax)
   {
-   return -1;
+    //ROS_INFO("Trigger 1");
+   return -1.0;
   }     
    //If one rectangle is above other (Recall down is positive in OpenCV)
   if (r1_ymin >= r2_ymax || r2_ymin >= r1_ymax) 
   {
-    return -1;
+    //ROS_INFO("Trigger 2");
+    return -1.0;
   }
   //Area of rectangles
-  double r1_area = detect_current.width * detect_current.height;
-  //double r2_area = r2.area();
-  double r2_area = detect_prev.width * detect_prev.height;
-  double ri_x = cv::max(r1_xmin, r2_xmin);
-  double ri_y = cv::max(r1_ymin, r2_ymin);
+  double r1_area = r1_width * r1_height;
+  double r2_area = r2_width * r2_height;
+  double ri_x = std::max(r1_xmin, r2_xmin);
+  double ri_y = std::max(r1_ymin, r2_ymin);
   //Locate top-right of intersected rectangle
-  double ri_xmax = cv::min(r1_xmax,r2_xmax);
-  double ri_ymax = cv::min(r1_ymax,r2_ymax);
+  double ri_xmax = std::min(r1_xmax,r2_xmax);
+  double ri_ymax = std::min(r1_ymax,r2_ymax);
   //Calculate Intersected Width
   double ri_width = ri_xmax - ri_x;
   //Calculate Intersected Height
@@ -159,6 +164,7 @@ double yoloEkf::IoU(const filteredBox& detect_current, const filteredBox& detect
   double ri_area = ri_height*ri_width;
   //Determine Intersection over Union
   double IoU = ri_area/((r1_area + r2_area)-ri_area);
+
 
   return IoU;
 }
