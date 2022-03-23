@@ -8,6 +8,7 @@
 #include <dynamic_reconfigure/server.h>
 // TODO: Add header for dynamic config file
 #include <math.h>
+#include <unordered_set>
 #include "box_ekf.hpp"
 
 namespace yolo_ekf{
