@@ -28,7 +28,7 @@ private:
   void recvBboxes(const darknet_ros_msgs::BoundingBoxesConstPtr& bbox_msg);
   void recvImgs(const sensor_msgs::ImageConstPtr& img_msg);
   void msgBox_to_ekfBox(const darknet_ros_msgs::BoundingBox& boundingbox, const ros::Time& boxStamp, filteredBox& ekfBox);
-  double IoU(const filteredBox& detect_current, const filteredBox& detect_prev, const double& IoU_thresh);
+  double IoU(const filteredBox& detect_current, const filteredBox& detect_prev);
   int getUniqueId();
  
   ros::Subscriber sub_Bboxes_;
@@ -40,7 +40,7 @@ private:
   // for vizualization purposes
   ros::Subscriber sub_detectionimgs_;
   cv::Mat img_raw;
-  std::vector<cv::Rect2d> cv_vects_;
+  std::vector<std::pair<int, cv::Rect2d>> cv_vects_;
 
   //dynamic_reconfigure::Server<paramer_configure_config_here> srv_;
   //<paramer_configure_config_here> cfg_;

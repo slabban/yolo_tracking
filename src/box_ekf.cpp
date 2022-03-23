@@ -86,7 +86,7 @@ void boxEkf::updateFilterMeasurement(const ros::Time& current_time, const filter
 
   // Calculate time difference between measurement and filter state
   double dt = (current_time - estimate_stamp_).toSec();
-  ROS_INFO("Detections update delta t: %f seconds", dt);
+  //ROS_INFO("Detections update delta t: %f seconds", dt);
 
   if (fabs(dt) > 2) {
     // Large time jump detected... reset filter to this measurement
@@ -176,6 +176,7 @@ filteredBox boxEkf::getEstimate(){
   estimate_output.vy = X_(5);
   estimate_output.vw = X_(6);
   estimate_output.vh = X_(7);
+  estimate_output.id = filteredBox_.id;
 
   estimate_output.darknet_box.xmin = estimate_output.cx - (0.5*estimate_output.width);
   estimate_output.darknet_box.xmax = estimate_output.cx + (0.5*estimate_output.width);

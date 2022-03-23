@@ -24,7 +24,9 @@ yoloEkf::yoloEkf(ros::NodeHandle n, ros::NodeHandle pn){
 void yoloEkf::recvImgs(const sensor_msgs::ImageConstPtr& img_msg){
     img_raw = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::BGR8)->image;
     for(size_t i = 0; i < cv_vects_.size(); ++i){
-      cv::rectangle(img_raw, cv_vects_[i], cv::Scalar(0,0,255));
+      cv::Point2d corner((cv_vects_[i].second.x + cv_vects_[i].second.width), cv_vects_[i].second.y);
+      cv::rectangle(img_raw, cv_vects_[i].second, cv::Scalar(0,255,0));
+      cv::putText(img_raw, std::to_string(cv_vects_[i].first), corner, cv::FONT_HERSHEY_DUPLEX, 0.5, cv::Scalar(0, 255, 0));
     }
     imshow("Sync_Output", img_raw);
     cv::waitKey(1);
@@ -49,21 +51,20 @@ void yoloEkf::timerCallback(const ros::TimerEvent& event){
     filteredBox estimated_output = box_ekfs_[i].getEstimate();
     cv::Rect2d prediction_cv(estimated_output.darknet_box.xmin, estimated_output.darknet_box.ymin,
     estimated_output.width,estimated_output.height);
-    cv_vects_.push_back(prediction_cv);
+    cv_vects_.push_back({estimated_output.id,prediction_cv});
   }
 }
 
+// This callback either initializes a new kalman filter instance or runs the update measurment function
+// based on an association algorithm that will attempt to match the boxes(t) to boxes(t-1)
+// Unmatched boxes will be instantiated, and matched boxes willbe updated. 
 void yoloEkf::recvBboxes(const darknet_ros_msgs::BoundingBoxesConstPtr& bbox_msg){
 
-  // Loop through the incoming bounding boxes
-  // This process either initializes a new kalman filter instance or run the update measurment function
-  // based on an association algorithm that will attempt to match the boxes(t) to boxes(t-1)
-  // Unmatched boxes will be instantiated, and matched boxes willbe updated. 
 
   // Vector to hold the EKF indices that have already been matched to an incoming object measurement
   std::vector<int> matched_detection_indices;
   // Vector to hold array indices of objects to create new EKF instances from
-  std::vector<filteredBox> new_detection_indices;
+  std::vector<filteredBox> new_detection_boxes;
 
   // Find closest candidate with the highest IoU
   for (auto& bounding_box : bbox_msg->bounding_boxes){
@@ -73,41 +74,36 @@ void yoloEkf::recvBboxes(const darknet_ros_msgs::BoundingBoxesConstPtr& bbox_msg
     filteredBox* current_candidate = nullptr;
     boxEkf* associated_filter = nullptr;
     double IoU_score_current = -1.f;
-    double IoU_score_prev = -1.f;
     double IoU_score_max = -1.f;
 
     for(size_t i=0; i<box_ekfs_.size(); ++i){
-      IoU_score_current = IoU(current_box, box_ekfs_[i].getEstimate(), IoU_thresh);
+      IoU_score_current = IoU(current_box, box_ekfs_[i].getEstimate());
 
       //ROS_INFO("current IoU is: %f", IoU_score_current);
-
       if(IoU_score_current > IoU_score_max && current_box.darknet_box.Class == box_ekfs_[i].getEstimate().darknet_box.Class){
         current_candidate = &current_box;
+        current_candidate->id = box_ekfs_[i].getId();
         associated_filter = &box_ekfs_[i];
         IoU_score_max = IoU_score_current;
       }
-      //IoU_score_prev = IoU_score_current;
     }
-    ROS_INFO("Max IoU is: %f", IoU_score_max);
-    // If IoU passes and the classes match, we can associate the incoming detection with the existing ekf instance
+    //ROS_INFO("Max IoU is: %f", IoU_score_max);
+    // If highest IoU passes and the classes match, we can associate the incoming detection with the existing ekf instance
     if (IoU_score_max >= IoU_thresh){
       associated_filter->updateFilterMeasurement(current_candidate->stamp, *current_candidate);
     }
     else{
-      new_detection_indices.push_back(current_box);
+      new_detection_boxes.push_back(current_box);
     }
   }
   // create new EKF instances to track the inputs that weren't associated with existing ones
-  for (auto new_object : new_detection_indices) {
-
-    //ROS_INFO("Creating new object!");
-
+  for (auto new_object : new_detection_boxes) {
+    new_object.id = getUniqueId();
     box_ekfs_.push_back(boxEkf(new_object));
-    // object_ekfs_.back().setQ(cfg_.q_pos, cfg_.q_vel);
-    // object_ekfs_.back().setR(cfg_.r_pos);
     }
 }
 
+// This converts the incoming darknet bounding boxes to the 'filteredbox' struct 
 void yoloEkf::msgBox_to_ekfBox(const darknet_ros_msgs::BoundingBox& boundingbox, const ros::Time& boxStamp, filteredBox& ekfBox){
   ekfBox.cx = 0.5*(boundingbox.xmax + boundingbox.xmin);
   ekfBox.cy = 0.5*(boundingbox.ymax + boundingbox.ymin);
@@ -117,11 +113,12 @@ void yoloEkf::msgBox_to_ekfBox(const darknet_ros_msgs::BoundingBox& boundingbox,
   ekfBox.vy = 0;
   ekfBox.vw = 0;
   ekfBox.vh = 0;
+  ekfBox.id = -1;
   ekfBox.stamp = boxStamp;
   ekfBox.darknet_box = boundingbox;
 }
 
-double yoloEkf::IoU(const filteredBox& detect_current, const filteredBox& detect_prev, const double& IoU_thresh)
+double yoloEkf::IoU(const filteredBox& detect_current, const filteredBox& detect_prev)
 {  
   // wrapping box names to r1 and r2 for readability
   double r1_xmin = detect_current.darknet_box.xmin;
@@ -164,8 +161,6 @@ double yoloEkf::IoU(const filteredBox& detect_current, const filteredBox& detect
   double ri_area = ri_height*ri_width;
   //Determine Intersection over Union
   double IoU = ri_area/((r1_area + r2_area)-ri_area);
-
-
   return IoU;
 }
 
