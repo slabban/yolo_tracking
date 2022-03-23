@@ -61,8 +61,8 @@ void yoloEkf::timerCallback(const ros::TimerEvent& event){
 void yoloEkf::recvBboxes(const darknet_ros_msgs::BoundingBoxesConstPtr& bbox_msg){
 
 
-  // Vector to hold the EKF indices that have already been matched to an incoming object measurement
-  std::vector<int> matched_detection_indices;
+  // unordered set to hold the EKF indices that have already been matched to an incoming object measurement
+  std::unordered_set<int> matched_detection_indices;
   // Vector to hold array indices of objects to create new EKF instances from
   std::vector<filteredBox> new_detection_boxes;
 
@@ -77,8 +77,13 @@ void yoloEkf::recvBboxes(const darknet_ros_msgs::BoundingBoxesConstPtr& bbox_msg
     double IoU_score_max = -1.f;
 
     for(size_t i=0; i<box_ekfs_.size(); ++i){
-      IoU_score_current = IoU(current_box, box_ekfs_[i].getEstimate());
 
+      auto hasMatch = matched_detection_indices.find(box_ekfs_[i].getId());
+      if(hasMatch != matched_detection_indices.end()){
+        continue;
+      }
+
+      IoU_score_current = IoU(current_box, box_ekfs_[i].getEstimate());
       //ROS_INFO("current IoU is: %f", IoU_score_current);
       if(IoU_score_current > IoU_score_max && current_box.darknet_box.Class == box_ekfs_[i].getEstimate().darknet_box.Class){
         current_candidate = &current_box;
@@ -91,6 +96,7 @@ void yoloEkf::recvBboxes(const darknet_ros_msgs::BoundingBoxesConstPtr& bbox_msg
     // If highest IoU passes and the classes match, we can associate the incoming detection with the existing ekf instance
     if (IoU_score_max >= IoU_thresh){
       associated_filter->updateFilterMeasurement(current_candidate->stamp, *current_candidate);
+      matched_detection_indices.insert(current_candidate->id);
     }
     else{
       new_detection_boxes.push_back(current_box);
