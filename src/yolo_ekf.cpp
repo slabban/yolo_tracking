@@ -78,6 +78,7 @@ void yoloEkf::recvBboxes(const darknet_ros_msgs::BoundingBoxesConstPtr& bbox_msg
 
     for(size_t i=0; i<box_ekfs_.size(); ++i){
 
+      // Check to see if the current index has already been matched, if so, skip this iteration
       auto hasMatch = matched_detection_indices.find(box_ekfs_[i].getId());
       if(hasMatch != matched_detection_indices.end()){
         continue;
@@ -94,6 +95,7 @@ void yoloEkf::recvBboxes(const darknet_ros_msgs::BoundingBoxesConstPtr& bbox_msg
     }
     //ROS_INFO("Max IoU is: %f", IoU_score_max);
     // If highest IoU passes and the classes match, we can associate the incoming detection with the existing ekf instance
+    // and add the index to the matched set
     if (IoU_score_max >= IoU_thresh){
       associated_filter->updateFilterMeasurement(current_candidate->stamp, *current_candidate);
       matched_detection_indices.insert(current_candidate->id);
