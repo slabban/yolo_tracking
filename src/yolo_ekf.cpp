@@ -17,7 +17,7 @@ yoloEkf::yoloEkf(ros::NodeHandle n, ros::NodeHandle pn){
   //TODO: Setup Dynamic Config Server here
 
   // IoU threshold for box association algorithms
-  IoU_thresh = 0.3;
+  IoU_thresh = 0.5;
   cv::namedWindow("Sync_Output", cv::WINDOW_NORMAL);
 }
 
@@ -68,6 +68,11 @@ void yoloEkf::recvBboxes(const darknet_ros_msgs::BoundingBoxesConstPtr& bbox_msg
 
   // Find closest candidate with the highest IoU
   for (auto& bounding_box : bbox_msg->bounding_boxes){
+
+    // Exclude truck detections due to class confusion limited Yolo performance
+    if(bounding_box.Class == "truck"){
+      continue;
+    }
     filteredBox current_box;
     msgBox_to_ekfBox(bounding_box, bbox_msg->header.stamp, current_box);
 
@@ -86,7 +91,8 @@ void yoloEkf::recvBboxes(const darknet_ros_msgs::BoundingBoxesConstPtr& bbox_msg
 
       IoU_score_current = IoU(current_box, box_ekfs_[i].getEstimate());
       //ROS_INFO("current IoU is: %f", IoU_score_current);
-      if(IoU_score_current > IoU_score_max && current_box.darknet_box.Class == box_ekfs_[i].getEstimate().darknet_box.Class){
+      //&& current_box.darknet_box.Class == box_ekfs_[i].getEstimate().darknet_box.Class
+      if(IoU_score_current > IoU_score_max){
         current_candidate = &current_box;
         current_candidate->id = box_ekfs_[i].getId();
         associated_filter = &box_ekfs_[i];

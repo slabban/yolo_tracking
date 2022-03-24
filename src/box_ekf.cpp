@@ -129,8 +129,8 @@ void boxEkf::updateFilterMeasurement(const ros::Time& current_time, const filter
   Eigen::Matrix4d R_;
   R_.row(0) << 1,0,0,0;
   R_.row(1) << 0,1,0,0;
-  R_.row(2) << 0,0,5,0;
-  R_.row(3) << 0,0,0,5;
+  R_.row(2) << 0,0,10,0;
+  R_.row(3) << 0,0,0,10;
 
   // Compute residual(Innovation) covariance matrix 
   Eigen::Matrix4d S;
@@ -163,7 +163,7 @@ int boxEkf::getId()
 }
 
 bool boxEkf::isStale() {
-  return (estimate_stamp_ - measurement_stamp_) > ros::Duration(0.2);
+  return (estimate_stamp_ - measurement_stamp_) > ros::Duration(0.5);
 }
 
 filteredBox boxEkf::getEstimate(){
