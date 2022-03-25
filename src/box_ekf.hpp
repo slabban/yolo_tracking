@@ -4,7 +4,6 @@
 //  YOLO Bounding Boxes Header 
 #include <darknet_ros_msgs/BoundingBoxes.h>
 #include <eigen3/Eigen/Dense>
-#include <dynamic_reconfigure/server.h>
 #include <opencv2/opencv.hpp>
 #include <cv_bridge/cv_bridge.h>
 
@@ -45,7 +44,16 @@ class boxEkf{
   filteredBox getEstimate();
   // getter function for EKF instance Id
   int getId();
-  bool isStale();
+  // Checker for maximum age of ekf 
+  bool isStale(float max_age);
+  // get estimate age
+  double getAge();
+  // Sets the process noise standard deviations
+  void setQ(double q);
+  // Sets the measurement noise standard deviation
+  void setR(double r_cx_cy, double r_width_height);
+  // Sets the inital covariance 
+  void setP(double p_init);
 
   private:
 
@@ -63,9 +71,12 @@ class boxEkf{
 
   // Timestamp from last measurement
   ros::Time measurement_stamp_;
-
+  // time the ekf instance was created
+  ros::Time spawn_stamp_;
   // Process Noise Covariance
   StateMatrix Q_;
+  // MeasurementCovariance
+  Eigen::Matrix4d R_;
 
   //ekf filtered box
   filteredBox filteredBox_;

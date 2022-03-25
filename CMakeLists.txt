@@ -17,17 +17,16 @@ find_package(catkin REQUIRED COMPONENTS
 
 find_package(OpenCV REQUIRED)
 
-# generate_dynamic_reconfigure_options(
-#   cfg/CameraLidarFusion.cfg
-#   cfg/Lidar_ekf.cfg
-# )
+generate_dynamic_reconfigure_options(
+   cfg/YoloEKF.cfg
+ )
 
 
 
-# generate_messages(
-#   DEPENDENCIES
-#   std_msgs
-# )
+#  generate_messages(
+#    DEPENDENCIES
+#    std_msgs
+#  )
 
 catkin_package(
   DEPENDS OpenCV std_msgs roscpp darknet_ros_msgs 
@@ -48,7 +47,7 @@ add_executable(${PROJECT_NAME}
 )
 
 add_dependencies(${PROJECT_NAME}
-  # ${PROJECT_NAME}_gencfg
+  ${PROJECT_NAME}_gencfg
   ${catkin_EXPORTED_TARGETS}
 )
 target_link_libraries(${PROJECT_NAME}

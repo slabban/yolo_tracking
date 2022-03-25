@@ -6,10 +6,12 @@ namespace yolo_ekf{
   {
     // Initialize state estimate to input arguments
     X_ << detection.cx, detection.cy, detection.width, detection.height, detection.vx, detection.vy, detection.vw, detection.vh;
-    P_.setIdentity() * 10000;
-    Q_ = Q_.setIdentity() *10;
+    //P_.setIdentity() * 10000;
+    //Q_ = Q_.setIdentity() *10;
+
     estimate_stamp_ = detection.stamp;
     measurement_stamp_ = detection.stamp;
+    spawn_stamp_ = detection.stamp;
     filteredBox_ = detection;
 
   }
@@ -55,7 +57,6 @@ namespace yolo_ekf{
 
   //Propagate covariance matrix by one step
   StateMatrix boxEkf::covPrediction(const StateMatrix& A, const StateMatrix& Q, const StateMatrix& old_cov){
-
     StateMatrix new_cov;
     new_cov = A*old_cov*A.transpose() + Q;
     return new_cov;
@@ -125,12 +126,12 @@ void boxEkf::updateFilterMeasurement(const ros::Time& current_time, const filter
   Eigen::Vector4d real_meas;
   real_meas << ekf_bounding_box.cx, ekf_bounding_box.cy, ekf_bounding_box.width, ekf_bounding_box.height;
 
-  // Define Measurement Noise R
-  Eigen::Matrix4d R_;
-  R_.row(0) << 1,0,0,0;
-  R_.row(1) << 0,1,0,0;
-  R_.row(2) << 0,0,10,0;
-  R_.row(3) << 0,0,0,10;
+  // // Define Measurement Noise R
+  // Eigen::Matrix4d R_;
+  // R_.row(0) << 1,0,0,0;
+  // R_.row(1) << 0,1,0,0;
+  // R_.row(2) << 0,0,10,0;
+  // R_.row(3) << 0,0,0,10;
 
   // Compute residual(Innovation) covariance matrix 
   Eigen::Matrix4d S;
@@ -157,15 +158,6 @@ filteredBox boxEkf::getfilteredBox(){
   return filteredBox_;
 }
 
-int boxEkf::getId()
-{
-  return id_ = filteredBox_.id;
-}
-
-bool boxEkf::isStale() {
-  return (estimate_stamp_ - measurement_stamp_) > ros::Duration(0.5);
-}
-
 filteredBox boxEkf::getEstimate(){
   filteredBox estimate_output;
   estimate_output.cx = X_(0);
@@ -185,6 +177,50 @@ filteredBox boxEkf::getEstimate(){
   estimate_output.darknet_box.Class = filteredBox_.darknet_box.Class;
 
   return estimate_output;
+}
+
+int boxEkf::getId()
+{
+  return id_ = filteredBox_.id;
+}
+
+bool boxEkf::isStale(float max_age) {
+  return (estimate_stamp_ - measurement_stamp_) > ros::Duration(max_age);
+}
+
+double boxEkf::getAge(){
+  return (estimate_stamp_ - spawn_stamp_).toSec();
+}
+
+// Sets the process noise standard deviations
+void boxEkf::setQ(double q)
+{
+  // Populate Q_ with q_pos and q_vel
+  Q_.setZero();
+  Q_(0, 0) = q;
+  Q_(1, 1) = q;
+  Q_(2, 2) = q;
+  Q_(3, 3) = q;
+  Q_(4, 4) = q;
+  Q_(5, 5) = q;
+  Q_(6, 6) = q;
+  Q_(7, 7) = q;
+}
+
+// Sets the measurement noise standard deviation
+void boxEkf::setR(double r_cx_cy, double r_width_height)
+{
+  // Populate R_ with r_pos
+  R_.setZero();
+  R_(0, 0) = r_cx_cy;
+  R_(1, 1) = r_cx_cy;
+  R_(2, 2) = r_width_height;
+  R_(3, 3) = r_width_height;
+}
+
+void boxEkf::setP(double p_init){
+  // Initialize the covariance matrix
+  P_.setIdentity() * p_init;
 }
 
 

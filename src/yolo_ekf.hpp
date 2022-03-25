@@ -10,6 +10,9 @@
 #include <math.h>
 #include <unordered_set>
 #include "box_ekf.hpp"
+// Dynamic reconfigure
+#include <dynamic_reconfigure/server.h>
+#include <yolo_ekf/YOLOEkfConfig.h>
 
 namespace yolo_ekf{
 
@@ -24,7 +27,7 @@ public:
   yoloEkf(ros::NodeHandle n, ros::NodeHandle pn);
 
 private:
-  //TODO: Add dynamic configuration function for tuning q and r
+  void reconfig(YOLOEkfConfig& config, uint32_t level);
   void timerCallback(const ros::TimerEvent& event);
   void recvBboxes(const darknet_ros_msgs::BoundingBoxesConstPtr& bbox_msg);
   void recvImgs(const sensor_msgs::ImageConstPtr& img_msg);
@@ -43,8 +46,8 @@ private:
   cv::Mat img_raw;
   std::vector<std::pair<int, cv::Rect2d>> cv_vects_;
 
-  //dynamic_reconfigure::Server<paramer_configure_config_here> srv_;
-  //<paramer_configure_config_here> cfg_;
+  dynamic_reconfigure::Server<YOLOEkfConfig> srv_;
+  YOLOEkfConfig cfg_;
 
   //Intersection Over Union Threshold
   double IoU_thresh;
