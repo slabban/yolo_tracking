@@ -14,15 +14,14 @@ yoloEkf::yoloEkf(ros::NodeHandle n, ros::NodeHandle pn){
   sub_Bboxes_ = n.subscribe("/darknet_ros/bounding_boxes", 1 , &yoloEkf::recvBboxes, this);
   pub_ekf_boxes_ = n.advertise<darknet_ros_msgs::BoundingBoxes>("boxes_ekf", 1);
   timer_ = n.createTimer(ros::Duration(sample_time), &yoloEkf::timerCallback, this);
-  //TODO: Setup Dynamic Config Server here
+  
+  srv_.setCallback(boost::bind(&yoloEkf::reconfig, this, _1, _2));
 
-  // IoU threshold for box association algorithms
-  IoU_thresh = 0.5;
   cv::namedWindow("Sync_Output", cv::WINDOW_NORMAL);
 }
 
 void yoloEkf::recvImgs(const sensor_msgs::ImageConstPtr& img_msg){
-    img_raw = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::BGR8)->image;
+    img_raw = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::RGB8)->image;
     for(size_t i = 0; i < cv_vects_.size(); ++i){
       cv::Point2d corner((cv_vects_[i].second.x + cv_vects_[i].second.width), cv_vects_[i].second.y);
       cv::rectangle(img_raw, cv_vects_[i].second, cv::Scalar(0,255,0));
@@ -38,7 +37,7 @@ void yoloEkf::timerCallback(const ros::TimerEvent& event){
   std::vector<size_t> stale_objects;
   for (size_t i = 0; i < box_ekfs_.size(); ++i) {
     box_ekfs_[i].updateFilterPredict(event.current_real);
-    if (box_ekfs_[i].isStale()) {
+    if (box_ekfs_[i].isStale(cfg_.max_age)) {
       stale_objects.push_back(i);
     }
   }
@@ -48,6 +47,10 @@ void yoloEkf::timerCallback(const ros::TimerEvent& event){
   // Loop through the estimates and estimated bounding boxes on to cv image
   cv_vects_.clear();
   for (size_t i = 0; i < box_ekfs_.size(); ++i) {
+    // ignore the instance if it is under a minimum age
+    if(box_ekfs_[i].getAge() < cfg_.min_age){
+      continue;
+    }
     filteredBox estimated_output = box_ekfs_[i].getEstimate();
     cv::Rect2d prediction_cv(estimated_output.darknet_box.xmin, estimated_output.darknet_box.ymin,
     estimated_output.width,estimated_output.height);
@@ -55,12 +58,12 @@ void yoloEkf::timerCallback(const ros::TimerEvent& event){
   }
 }
 
-// This callback either initializes a new kalman filter instance or runs the update measurment function
-// based on an association algorithm that will attempt to match the boxes(t) to boxes(t-1)
-// Unmatched boxes will be instantiated, and matched boxes willbe updated. 
+// This callback containts an association algorithm that will attempt to match the boxes(t) to boxes(t-1)
+// Unmatched boxes will be instantiated, and matched boxes will be used to update exiting measurments. 
 void yoloEkf::recvBboxes(const darknet_ros_msgs::BoundingBoxesConstPtr& bbox_msg){
 
-
+  // IoU threshold for box association algorithms
+  IoU_thresh = cfg_.IoU_thresh;
   // unordered set to hold the EKF indices that have already been matched to an incoming object measurement
   std::unordered_set<int> matched_detection_indices;
   // Vector to hold array indices of objects to create new EKF instances from
@@ -73,8 +76,13 @@ void yoloEkf::recvBboxes(const darknet_ros_msgs::BoundingBoxesConstPtr& bbox_msg
     if(bounding_box.Class == "truck"){
       continue;
     }
+    // Create filtered box for current detection
     filteredBox current_box;
     msgBox_to_ekfBox(bounding_box, bbox_msg->header.stamp, current_box);
+
+    if(current_box.width < cfg_.min_size_x && current_box.height< cfg_.min_size_y){
+      continue;
+    }
 
     filteredBox* current_candidate = nullptr;
     boxEkf* associated_filter = nullptr;
@@ -82,7 +90,6 @@ void yoloEkf::recvBboxes(const darknet_ros_msgs::BoundingBoxesConstPtr& bbox_msg
     double IoU_score_max = -1.f;
 
     for(size_t i=0; i<box_ekfs_.size(); ++i){
-
       // Check to see if the current index has already been matched, if so, skip this iteration
       auto hasMatch = matched_detection_indices.find(box_ekfs_[i].getId());
       if(hasMatch != matched_detection_indices.end()){
@@ -114,7 +121,20 @@ void yoloEkf::recvBboxes(const darknet_ros_msgs::BoundingBoxesConstPtr& bbox_msg
   for (auto new_object : new_detection_boxes) {
     new_object.id = getUniqueId();
     box_ekfs_.push_back(boxEkf(new_object));
+    box_ekfs_.back().setP(cfg_.p_factor);
+    box_ekfs_.back().setQ(cfg_.q);
+    box_ekfs_.back().setR(cfg_.r_cx_cy, cfg_.r_w_h);
     }
+}
+
+void yoloEkf::reconfig(YOLOEkfConfig& config, uint32_t level)
+{
+  cfg_ = config;
+  // Update Q and R matrices in each EKF instance
+  for (size_t i = 0; i < box_ekfs_.size(); i++) {
+    box_ekfs_[i].setQ(cfg_.q);
+    box_ekfs_[i].setR(cfg_.r_cx_cy, cfg_.r_w_h);
+  }
 }
 
 // This converts the incoming darknet bounding boxes to the 'filteredbox' struct 
