@@ -2,7 +2,7 @@
 
 <launch>
   
-  <arg name="offline" default="false" />
+  <arg name="offline" default="true" />
   <param name="use_sim_time" value="$(arg offline)" />
 
 
