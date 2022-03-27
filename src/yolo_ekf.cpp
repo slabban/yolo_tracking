@@ -9,27 +9,45 @@ namespace yolo_ekf{
 yoloEkf::yoloEkf(ros::NodeHandle n, ros::NodeHandle pn){
 
   double sample_time = 0.02;
-
-  sub_detectionimgs_ = n.subscribe("/darknet_ros/detection_image", 1, &yoloEkf::recvImgs, this);
-  sub_Bboxes_ = n.subscribe("/darknet_ros/bounding_boxes", 1 , &yoloEkf::recvBboxes, this);
+  sub_img_.reset(new message_filters::Subscriber<sensor_msgs::Image>(n, "/darknet_ros/detection_image", 5));
+  sub_objects_.reset(new message_filters::Subscriber<darknet_ros_msgs::BoundingBoxes>(n, "/darknet_ros/bounding_boxes", 5));
+  //sub_detectionimgs_ = n.subscribe("/darknet_ros/detection_image", 1, &yoloEkf::recvImgs, this);
+  //sub_Bboxes_ = n.subscribe("/darknet_ros/bounding_boxes", 1 , &yoloEkf::recvBboxes, this);
   pub_ekf_boxes_ = n.advertise<darknet_ros_msgs::BoundingBoxes>("boxes_ekf", 1);
   timer_ = n.createTimer(ros::Duration(sample_time), &yoloEkf::timerCallback, this);
+
+  sync_yolo_data_.reset(new message_filters::Synchronizer<YoloSyncPolicy>(YoloSyncPolicy(10), *sub_img_, *sub_objects_));
+  sync_yolo_data_->registerCallback(boost::bind(&yoloEkf::recvSyncedBoxes, this, _1, _2));
   
   srv_.setCallback(boost::bind(&yoloEkf::reconfig, this, _1, _2));
 
   cv::namedWindow("Sync_Output", cv::WINDOW_NORMAL);
+
+  previous_stamp = ros::Time::now();
 }
 
-void yoloEkf::recvImgs(const sensor_msgs::ImageConstPtr& img_msg){
-    img_raw = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::RGB8)->image;
-    for(size_t i = 0; i < cv_vects_.size(); ++i){
-      cv::Point2d corner((cv_vects_[i].second.x + cv_vects_[i].second.width), cv_vects_[i].second.y);
-      cv::rectangle(img_raw, cv_vects_[i].second, cv::Scalar(0,255,0));
-      cv::putText(img_raw, std::to_string(cv_vects_[i].first), corner, cv::FONT_HERSHEY_DUPLEX, 0.5, cv::Scalar(0, 255, 0));
-    }
-    imshow("Sync_Output", img_raw);
-    cv::waitKey(1);
-}
+// void yoloEkf::recvSyncedBoxes(const sensor_msgs::ImageConstPtr& img_msg, const darknet_ros_msgs::BoundingBoxesConstPtr& bbox_msg){
+//     img_raw = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::RGB8)->image;
+//       // Loop through the estimates and estimated bounding boxes on to cv image
+//     cv_vects_.clear();
+//     for (size_t i = 0; i < box_ekfs_.size(); ++i) {
+//     // ignore the instance if it is under a minimum age
+//     if(box_ekfs_[i].getAge() < cfg_.min_age){
+//       continue;
+//     }
+//     filteredBox estimated_output = box_ekfs_[i].getEstimate();
+//     cv::Rect2d prediction_cv(estimated_output.darknet_box.xmin, estimated_output.darknet_box.ymin,
+//     estimated_output.width,estimated_output.height);
+//     cv_vects_.push_back({estimated_output.id,prediction_cv});
+//   }
+//     for(size_t i = 0; i < cv_vects_.size(); ++i){
+//       cv::Point2d corner((cv_vects_[i].second.x + cv_vects_[i].second.width), cv_vects_[i].second.y);
+//       cv::rectangle(img_raw, cv_vects_[i].second, cv::Scalar(0,255,0));
+//       cv::putText(img_raw, std::to_string(cv_vects_[i].first), corner, cv::FONT_HERSHEY_DUPLEX, 0.5, cv::Scalar(0, 255, 0));
+//     }
+//     imshow("Sync_Output", img_raw);
+//     cv::waitKey(1);
+// }
 
 
 void yoloEkf::timerCallback(const ros::TimerEvent& event){
@@ -44,9 +62,19 @@ void yoloEkf::timerCallback(const ros::TimerEvent& event){
   for (int i = (int)stale_objects.size() - 1; i >= 0; i--) {
     box_ekfs_.erase(box_ekfs_.begin() + stale_objects[i]);
   }
-  // Loop through the estimates and estimated bounding boxes on to cv image
-  cv_vects_.clear();
-  for (size_t i = 0; i < box_ekfs_.size(); ++i) {
+}
+
+// This callback containts an association algorithm that will attempt to match the boxes(t) to boxes(t-1)
+// Unmatched boxes will be instantiated, and matched boxes will be used to update exiting measurments. 
+void yoloEkf::recvSyncedBoxes(const sensor_msgs::ImageConstPtr& img_msg, const darknet_ros_msgs::BoundingBoxesConstPtr& bbox_msg){
+    float elapsed_time = (img_msg->header.stamp - previous_stamp).toSec();
+    previous_stamp = img_msg->header.stamp;
+    ROS_INFO("Time since last synced message %f", elapsed_time);
+
+    img_raw = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::RGB8)->image;
+      // Loop through the estimates and estimated bounding boxes on to cv image
+    cv_vects_.clear();
+    for (size_t i = 0; i < box_ekfs_.size(); ++i) {
     // ignore the instance if it is under a minimum age
     if(box_ekfs_[i].getAge() < cfg_.min_age){
       continue;
@@ -56,13 +84,14 @@ void yoloEkf::timerCallback(const ros::TimerEvent& event){
     estimated_output.width,estimated_output.height);
     cv_vects_.push_back({estimated_output.id,prediction_cv});
   }
-}
+    for(size_t i = 0; i < cv_vects_.size(); ++i){
+      cv::Point2d corner((cv_vects_[i].second.x + cv_vects_[i].second.width), cv_vects_[i].second.y);
+      cv::rectangle(img_raw, cv_vects_[i].second, cv::Scalar(0,0,255));
+      cv::putText(img_raw, std::to_string(cv_vects_[i].first), corner, cv::FONT_HERSHEY_DUPLEX, 0.5, cv::Scalar(0, 0, 255));
+    }
+    imshow("Sync_Output", img_raw);
+    cv::waitKey(1);
 
-// This callback containts an association algorithm that will attempt to match the boxes(t) to boxes(t-1)
-// Unmatched boxes will be instantiated, and matched boxes will be used to update exiting measurments. 
-void yoloEkf::recvBboxes(const darknet_ros_msgs::BoundingBoxesConstPtr& bbox_msg){
-
-  // IoU threshold for box association algorithms
   IoU_thresh = cfg_.IoU_thresh;
   // unordered set to hold the EKF indices that have already been matched to an incoming object measurement
   std::unordered_set<int> matched_detection_indices;
