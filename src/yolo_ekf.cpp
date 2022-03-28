@@ -67,9 +67,9 @@ void yoloEkf::timerCallback(const ros::TimerEvent& event){
 // This callback containts an association algorithm that will attempt to match the boxes(t) to boxes(t-1)
 // Unmatched boxes will be instantiated, and matched boxes will be used to update exiting measurments. 
 void yoloEkf::recvSyncedBoxes(const sensor_msgs::ImageConstPtr& img_msg, const darknet_ros_msgs::BoundingBoxesConstPtr& bbox_msg){
-    float elapsed_time = (img_msg->header.stamp - previous_stamp).toSec();
-    previous_stamp = img_msg->header.stamp;
-    ROS_INFO("Time since last synced message %f", elapsed_time);
+    //float elapsed_time = (img_msg->header.stamp - previous_stamp).toSec();
+    //previous_stamp = img_msg->header.stamp;
+    //ROS_INFO("Time since last synced message %f", elapsed_time);
 
     img_raw = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::RGB8)->image;
       // Loop through the estimates and estimated bounding boxes on to cv image

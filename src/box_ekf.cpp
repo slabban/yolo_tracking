@@ -6,8 +6,6 @@ namespace yolo_ekf{
   {
     // Initialize state estimate to input arguments
     X_ << detection.cx, detection.cy, detection.width, detection.height, detection.vx, detection.vy, detection.vw, detection.vh;
-    //P_.setIdentity() * 10000;
-    //Q_ = Q_.setIdentity() *10;
 
     estimate_stamp_ = detection.stamp;
     measurement_stamp_ = detection.stamp;
@@ -199,12 +197,12 @@ void boxEkf::setQ(double q)
   Q_.setZero();
   Q_(0, 0) = q;
   Q_(1, 1) = q;
-  Q_(2, 2) = q;
-  Q_(3, 3) = q;
+  Q_(2, 2) = 1.5*q;
+  Q_(3, 3) = 1.5*q;
   Q_(4, 4) = q;
   Q_(5, 5) = q;
-  Q_(6, 6) = q;
-  Q_(7, 7) = q;
+  Q_(6, 6) = 1.5*q;
+  Q_(7, 7) = 1.5*q;
 }
 
 // Sets the measurement noise standard deviation
