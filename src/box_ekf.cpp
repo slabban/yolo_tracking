@@ -17,14 +17,14 @@ namespace yolo_ekf{
   // Implement State Prediction Step
   StateVector boxEkf::statePrediction(double dt, const StateVector& old_state){
 
-    int cx = old_state(0);
-    int cy = old_state(1);
-    int width = old_state(2);
-    int height = old_state(3);
-    float vx = old_state(4);
-    float vy = old_state(5);
-    float vw = old_state(6);
-    float vh = old_state(7);
+    double cx = old_state(0);
+    double cy = old_state(1);
+    double width = old_state(2);
+    double height = old_state(3);
+    double vx = old_state(4);
+    double vy = old_state(5);
+    double vw = old_state(6);
+    double vh = old_state(7);
 
     StateVector new_state;
     new_state(0) = cx + (dt*vx);
@@ -191,18 +191,27 @@ double boxEkf::getAge(){
 }
 
 // Sets the process noise standard deviations
-void boxEkf::setQ(double q)
+void boxEkf::setQ(double q_pos, double q_vel)
 {
   // Populate Q_ with q_pos and q_vel
   Q_.setZero();
-  Q_(0, 0) = q;
-  Q_(1, 1) = q;
-  Q_(2, 2) = 1.5*q;
-  Q_(3, 3) = 1.5*q;
-  Q_(4, 4) = q;
-  Q_(5, 5) = q;
-  Q_(6, 6) = 1.5*q;
-  Q_(7, 7) = 1.5*q;
+  Q_(0, 0) = q_pos;
+  Q_(1, 1) = q_pos;
+  Q_(2, 2) = q_pos;
+  Q_(3, 3) = q_pos;
+  Q_(4, 4) = q_vel;
+  Q_(5, 5) = q_vel;
+  Q_(6, 6) = q_vel;
+  Q_(7, 7) = q_vel;
+
+  // Q_.row(0) << q_pos,q_pos,0,0,0,0,0,0;
+  // Q_.row(1) << q_pos,q_pos,0,0,0,0,0,0;
+  // Q_.row(2) << 0,0,q_pos,q_pos,0,0,0,0;
+  // Q_.row(3) << 0,0,q_pos,q_pos,0,0,0,0;
+  // Q_.row(4) << 0,0,0,0,q_pos,q_pos,0,0;
+  // Q_.row(5) << 0,0,0,0,q_pos,q_vel,0,0;
+  // Q_.row(6) << 0,0,0,0,0,0,q_vel,q_pos;
+  // Q_.row(7) << 0,0,0,0,0,0,q_pos,q_vel;
 }
 
 // Sets the measurement noise standard deviation
