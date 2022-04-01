@@ -49,7 +49,7 @@ class boxEkf{
   // get estimate age
   double getAge();
   // Sets the process noise standard deviations
-  void setQ(double q);
+  void setQ(double q_pos, double q_vel);
   // Sets the measurement noise standard deviation
   void setR(double r_cx_cy, double r_width_height);
   // Sets the inital covariance 

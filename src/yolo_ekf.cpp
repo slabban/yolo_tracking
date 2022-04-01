@@ -8,7 +8,7 @@ namespace yolo_ekf{
 
 yoloEkf::yoloEkf(ros::NodeHandle n, ros::NodeHandle pn){
 
-  double sample_time = 0.02;
+  double sample_time = 0.04;
   sub_img_.reset(new message_filters::Subscriber<sensor_msgs::Image>(n, "/darknet_ros/detection_image", 5));
   sub_objects_.reset(new message_filters::Subscriber<darknet_ros_msgs::BoundingBoxes>(n, "/darknet_ros/bounding_boxes", 5));
   //sub_detectionimgs_ = n.subscribe("/darknet_ros/detection_image", 1, &yoloEkf::recvImgs, this);
@@ -71,7 +71,7 @@ void yoloEkf::recvSyncedBoxes(const sensor_msgs::ImageConstPtr& img_msg, const d
     //previous_stamp = img_msg->header.stamp;
     //ROS_INFO("Time since last synced message %f", elapsed_time);
 
-    img_raw = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::RGB8)->image;
+    img_raw = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::BGR8)->image;
       // Loop through the estimates and estimated bounding boxes on to cv image
     cv_vects_.clear();
     for (size_t i = 0; i < box_ekfs_.size(); ++i) {
@@ -151,7 +151,7 @@ void yoloEkf::recvSyncedBoxes(const sensor_msgs::ImageConstPtr& img_msg, const d
     new_object.id = getUniqueId();
     box_ekfs_.push_back(boxEkf(new_object));
     box_ekfs_.back().setP(cfg_.p_factor);
-    box_ekfs_.back().setQ(cfg_.q);
+    box_ekfs_.back().setQ(cfg_.q_pos, cfg_.q_vel);
     box_ekfs_.back().setR(cfg_.r_cx_cy, cfg_.r_w_h);
     }
 }
@@ -161,7 +161,7 @@ void yoloEkf::reconfig(YOLOEkfConfig& config, uint32_t level)
   cfg_ = config;
   // Update Q and R matrices in each EKF instance
   for (size_t i = 0; i < box_ekfs_.size(); i++) {
-    box_ekfs_[i].setQ(cfg_.q);
+    box_ekfs_[i].setQ(cfg_.q_pos, cfg_.q_vel);
     box_ekfs_[i].setR(cfg_.r_cx_cy, cfg_.r_w_h);
   }
 }
