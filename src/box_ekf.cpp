@@ -124,13 +124,6 @@ void boxEkf::updateFilterMeasurement(const ros::Time& current_time, const filter
   Eigen::Vector4d real_meas;
   real_meas << ekf_bounding_box.cx, ekf_bounding_box.cy, ekf_bounding_box.width, ekf_bounding_box.height;
 
-  // // Define Measurement Noise R
-  // Eigen::Matrix4d R_;
-  // R_.row(0) << 1,0,0,0;
-  // R_.row(1) << 0,1,0,0;
-  // R_.row(2) << 0,0,10,0;
-  // R_.row(3) << 0,0,0,10;
-
   // Compute residual(Innovation) covariance matrix 
   Eigen::Matrix4d S;
   S = C * predicted_cov * C.transpose() + R_;
@@ -203,15 +196,6 @@ void boxEkf::setQ(double q_pos, double q_vel)
   Q_(5, 5) = q_vel;
   Q_(6, 6) = q_vel;
   Q_(7, 7) = q_vel;
-
-  // Q_.row(0) << q_pos,q_pos,0,0,0,0,0,0;
-  // Q_.row(1) << q_pos,q_pos,0,0,0,0,0,0;
-  // Q_.row(2) << 0,0,q_pos,q_pos,0,0,0,0;
-  // Q_.row(3) << 0,0,q_pos,q_pos,0,0,0,0;
-  // Q_.row(4) << 0,0,0,0,q_pos,q_pos,0,0;
-  // Q_.row(5) << 0,0,0,0,q_pos,q_vel,0,0;
-  // Q_.row(6) << 0,0,0,0,0,0,q_vel,q_pos;
-  // Q_.row(7) << 0,0,0,0,0,0,q_pos,q_vel;
 }
 
 // Sets the measurement noise standard deviation

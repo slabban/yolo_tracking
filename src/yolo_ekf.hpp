@@ -33,10 +33,8 @@ private:
   void recvSyncedBoxes(const sensor_msgs::ImageConstPtr& img_msg, const darknet_ros_msgs::BoundingBoxesConstPtr& bbox_msg);
   void reconfig(YOLOEkfConfig& config, uint32_t level);
   void timerCallback(const ros::TimerEvent& event);
-  //void recvBboxes(const darknet_ros_msgs::BoundingBoxesConstPtr& bbox_msg);
-  //void recvImgs(const sensor_msgs::ImageConstPtr& img_msg);
   void msgBox_to_ekfBox(const darknet_ros_msgs::BoundingBox& boundingbox, const ros::Time& boxStamp, filteredBox& ekfBox);
-  double IoU(const filteredBox& detect_current, const filteredBox& detect_prev);
+  double calculateIoU(const filteredBox& detect_current, const filteredBox& detect_prev);
   int getUniqueId();
 
   // Setup for Image & bounding box synchronizer
@@ -49,7 +47,6 @@ private:
   // TODO: Define some message that will publish the predicted bounding box states information as pub_box_comprehensive_
   ros::Publisher pub_box_comprehensive_;
   ros::Timer timer_;
-  ros::Time previous_stamp;
 
   // for vizualization purposes
   ros::Subscriber sub_detectionimgs_;

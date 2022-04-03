@@ -75,7 +75,7 @@ class boxEkf{
   ros::Time spawn_stamp_;
   // Process Noise Covariance
   StateMatrix Q_;
-  // MeasurementCovariance
+  // Measurement Covariance
   Eigen::Matrix4d R_;
 
   //ekf filtered box
