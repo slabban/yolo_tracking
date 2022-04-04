@@ -12,10 +12,8 @@ yoloEkf::yoloEkf(ros::NodeHandle n, ros::NodeHandle pn){
   sub_objects_.reset(new message_filters::Subscriber<darknet_ros_msgs::BoundingBoxes>(n, "/darknet_ros/bounding_boxes", 5));
   pub_ekf_boxes_ = n.advertise<darknet_ros_msgs::BoundingBoxes>("boxes_ekf", 1);
   timer_ = n.createTimer(ros::Duration(sample_time), &yoloEkf::timerCallback, this);
-
   sync_yolo_data_.reset(new message_filters::Synchronizer<YoloSyncPolicy>(YoloSyncPolicy(10), *sub_img_, *sub_objects_));
   sync_yolo_data_->registerCallback(boost::bind(&yoloEkf::recvSyncedBoxes, this, _1, _2));
-  
   srv_.setCallback(boost::bind(&yoloEkf::reconfig, this, _1, _2));
 
   cv::namedWindow("Sync_Output", cv::WINDOW_NORMAL);
@@ -39,34 +37,30 @@ void yoloEkf::timerCallback(const ros::TimerEvent& event){
 // Unmatched boxes will be instantiated, and matched boxes will be used to update exiting measurments. 
 void yoloEkf::recvSyncedBoxes(const sensor_msgs::ImageConstPtr& img_msg, const darknet_ros_msgs::BoundingBoxesConstPtr& bbox_msg){
 
-    // Loop through the estimates and estimated bounding boxes on to cv image
-    img_raw = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::BGR8)->image;
-    cv_vects_.clear();
-    for (size_t i = 0; i < box_ekfs_.size(); ++i) {
-    // ignore the instance if it is under a minimum age
-    if(box_ekfs_[i].getAge() < cfg_.min_age){
-      continue;
-    }
-
-    filteredBox estimated_output = box_ekfs_[i].getEstimate();
-    cv::Rect2d prediction_cv(estimated_output.darknet_box.xmin, estimated_output.darknet_box.ymin,
-    estimated_output.width,estimated_output.height);
-    cv_vects_.push_back({estimated_output.id,prediction_cv});
+  // Loop through the estimates and estimated bounding boxes on to cv image
+  img_raw = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::BGR8)->image;
+  cv_vects_.clear();
+  for (size_t i = 0; i < box_ekfs_.size(); ++i) {
+  // ignore the instance if it is under a minimum age
+  if(box_ekfs_[i].getAge() < cfg_.min_age){
+    continue;
   }
-    for(size_t i = 0; i < cv_vects_.size(); ++i){
-      cv::Point2d corner((cv_vects_[i].second.x + cv_vects_[i].second.width), cv_vects_[i].second.y);
-      cv::rectangle(img_raw, cv_vects_[i].second, cv::Scalar(0,0,255));
-      cv::putText(img_raw, std::to_string(cv_vects_[i].first), corner, cv::FONT_HERSHEY_DUPLEX, 0.5, cv::Scalar(0, 0, 255));
-    }
-    imshow("Sync_Output", img_raw);
-    cv::waitKey(1);
+  filteredBox estimated_output = box_ekfs_[i].getEstimate();
+  cv::Rect2d prediction_cv(estimated_output.darknet_box.xmin, estimated_output.darknet_box.ymin,
+  estimated_output.width,estimated_output.height);
+  cv_vects_.push_back({estimated_output.id,prediction_cv});
+  }
+  for(size_t i = 0; i < cv_vects_.size(); ++i){
+    cv::Point2d corner((cv_vects_[i].second.x + cv_vects_[i].second.width), cv_vects_[i].second.y);
+    cv::rectangle(img_raw, cv_vects_[i].second, cv::Scalar(0,0,255));
+    cv::putText(img_raw, std::to_string(cv_vects_[i].first), corner, cv::FONT_HERSHEY_DUPLEX, 0.5, cv::Scalar(0, 0, 255));
+  }
+  imshow("Sync_Output", img_raw);
+  cv::waitKey(1);
 
   IoU_thresh = cfg_.IoU_thresh;
-  // unordered set to hold the EKF indices that have already been matched to an incoming object measurement
   std::unordered_set<int> matched_detection_indices;
-  // Vector to hold array indices of objects to create new EKF instances from
   std::vector<filteredBox> new_detection_boxes;
-
   // Find closest candidate with the highest IoU
   for (auto& bounding_box : bbox_msg->bounding_boxes){
 
@@ -78,7 +72,7 @@ void yoloEkf::recvSyncedBoxes(const sensor_msgs::ImageConstPtr& img_msg, const d
     filteredBox current_box;
     msgBox_to_ekfBox(bounding_box, bbox_msg->header.stamp, current_box);
 
-    if(current_box.width < cfg_.min_size_x && current_box.height< cfg_.min_size_y){
+    if(current_box.width < cfg_.min_width && current_box.height< cfg_.min_height){
       continue;
     }
 
@@ -104,7 +98,6 @@ void yoloEkf::recvSyncedBoxes(const sensor_msgs::ImageConstPtr& img_msg, const d
         IoU_score_max = IoU_score_current;
       }
     }
-    //ROS_INFO("Max IoU is: %f", IoU_score_max);
     // If highest IoU passes and the classes match, we can associate the incoming detection with the existing ekf instance
     // and add the index to the matched set
     if (IoU_score_max >= IoU_thresh){
@@ -168,13 +161,11 @@ double yoloEkf::calculateIoU(const filteredBox& detect_current, const filteredBo
   //If one rectangle is on left side of other 
   if (r1_xmin >= r2_xmax || r2_xmin >= r1_xmax)
   {
-    //ROS_INFO("Trigger 1");
    return -1.0;
   }     
    //If one rectangle is above other (Recall down is positive in OpenCV)
   if (r1_ymin >= r2_ymax || r2_ymin >= r1_ymax) 
   {
-    //ROS_INFO("Trigger 2");
     return -1.0;
   }
   //Area of rectangles
@@ -198,7 +189,6 @@ double yoloEkf::calculateIoU(const filteredBox& detect_current, const filteredBo
 
 int yoloEkf::getUniqueId()
   {
-    //return id ++ 
     int id = 0;
     bool done = false;
     while (!done) {
