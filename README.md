@@ -56,7 +56,7 @@ Now for the fun part, tuning.. Sarcasm aside, this is arguably the most importan
 
 <img src="/images/yolo_ekf_rqt.png?raw=true" />
 
-Where the parameters
+Where the parameters are:
 
 | Parameter | Description |
 | ----------- | ----------- |
@@ -72,11 +72,11 @@ Where the parameters
 | q_vel | EKF measurement standard deviation squared |
 
 ## Performance Analysis 
-I tested the performance of the algorithm on a bag file I was able to access from an archived Udacity course for a visual analysis:
+I tested the performance of the algorithm on a bag file I was able to access from an archived Udacity course for a visual analysis.
 
-*insert video here*
+[![YOLO MOT](https://res.cloudinary.com/marcomontalbano/image/upload/v1649134272/video_to_markdown/images/youtube--ru_O9tgi5M4-c05b58ac6eb4c4700831b2b3070cd403.jpg)](https://www.youtube.com/watch?v=ru_O9tgi5M4 "YOLO MOT")
 
-Due to the constraints of my current system, I had to step the playback speed down, but the general performance can be seen here. I suspect that the system, specifically the EKF Process Noise could use some more tuning through the introduction of cross-covariances.
+Due to the constraints of my current system, I had to step the playback speed down, but the general performance can be seen here. I suspect that the system, specifically the EKF Process Noise, could use some more tuning through the introduction of cross-covariance noise.
 
 The current methodolgy has a few drawbacks that apply to these classical systems. Namely loss of tracking through ID Swaps and Object Occlusion. Using the famous Hungarian Algorithm for association paired with the EKF is known as **SORT**, and would help reduce the frequency of ID swaps and improve the overall effciency, since that algorithm uses a linear assignment strategy; whereas my current approach associates using a 'first come first serve' method. But the best method to date is called **Deepsort**, which leverages feature maps from the CNN for association. Deepsort elegantly solves the ID Swap and Occlusion problem, and is built on **SORT** and the classical concepts that were used in this repository. You can get the full scoop on this [here](https://medium.com/augmented-startups/deepsort-deep-learning-applied-to-object-tracking-924f59f99104).
 
